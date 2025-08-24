@@ -353,15 +353,15 @@ export default function FlightGanttChart({
   return (
     <div className="space-y-4">
       {/* Chart Header */}
-      <div className="flex items-center justify-between bg-gray-100 p-4 rounded-lg">
-        <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-semibold">Flight Schedule for {getZoomLabel()}</h3>
-          <div className="flex items-center space-x-2 text-sm text-gray-600">
-            <Plane className="w-4 h-4" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-100 p-3 sm:p-4 rounded-lg space-y-3 sm:space-y-0">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-x-4">
+          <h3 className="text-base sm:text-lg font-semibold">Flight Schedule for {getZoomLabel()}</h3>
+          <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
+            <Plane className="w-3 h-3 sm:w-4 sm:h-4" />
             <span>{rangeFlights.length} flights</span>
             {conflicts.length > 0 && (
               <div className="flex items-center space-x-1 text-orange-600">
-                <AlertTriangle className="w-4 h-4" />
+                <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>{conflicts.length} conflicts</span>
               </div>
             )}
@@ -369,12 +369,12 @@ export default function FlightGanttChart({
         </div>
         
         {/* Zoom Controls */}
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-600 font-medium">Zoom:</span>
+        <div className="flex items-center space-x-1 sm:space-x-2">
+          <span className="text-xs sm:text-sm text-gray-600 font-medium">Zoom:</span>
           <div className="flex border border-gray-300 rounded-lg overflow-hidden">
             <button
               onClick={() => setZoomLevel('week')}
-              className={`px-3 py-1 text-sm transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-xs sm:text-sm transition-colors ${
                 zoomLevel === 'week' 
                   ? 'bg-blue-600 text-white' 
                   : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -384,7 +384,7 @@ export default function FlightGanttChart({
             </button>
             <button
               onClick={() => setZoomLevel('month')}
-              className={`px-3 py-1 text-sm transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-xs sm:text-sm transition-colors ${
                 zoomLevel === 'month' 
                   ? 'bg-blue-600 text-white' 
                   : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -395,17 +395,17 @@ export default function FlightGanttChart({
           </div>
           
           {/* Manual Zoom Controls */}
-          <div className="flex items-center space-x-1 ml-2">
+          <div className="flex items-center space-x-1 ml-1 sm:ml-2">
             <button
               onClick={() => {
                 if (zoomLevel === 'month') return
                 if (zoomLevel === 'week') setZoomLevel('month')
               }}
               disabled={zoomLevel === 'month'}
-              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1 sm:p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Zoom Out"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => {
@@ -413,28 +413,28 @@ export default function FlightGanttChart({
                 if (zoomLevel === 'month') setZoomLevel('week')
               }}
               disabled={zoomLevel === 'week'}
-              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1 sm:p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Zoom In"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
         
         {/* Weather Summary */}
         {weatherData && (
-          <div className="flex items-center space-x-4 text-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm">
             <span className="font-medium text-gray-700">Weather Summary:</span>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3 overflow-x-auto">
               {Array.from(new Set(rangeFlights.flatMap(f => [f.origin, f.destination]))).slice(0, 5).map(airport => {
                 const weather = weatherData[airport]
                 if (!weather) return null
                 return (
-                  <div key={airport} className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border border-gray-200">
-                    <span className="font-medium text-gray-700">{airport}</span>
+                  <div key={airport} className="flex items-center space-x-1 sm:space-x-2 bg-white px-2 sm:px-3 py-1 sm:py-2 rounded-lg border border-gray-200 flex-shrink-0">
+                    <span className="font-medium text-gray-700 text-xs sm:text-sm">{airport}</span>
                     {getWeatherIcon(weather.condition)}
-                    <span className="text-gray-600">{weather.temperature}°C</span>
-                    <span className="text-gray-500 text-xs">{weather.condition}</span>
+                    <span className="text-gray-600 text-xs sm:text-sm">{weather.temperature}°C</span>
+                    <span className="text-gray-500 text-xs hidden sm:block">{weather.condition}</span>
                   </div>
                 )
               })}
@@ -442,10 +442,10 @@ export default function FlightGanttChart({
           </div>
         )}
         
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
           <button
             onClick={() => setShowConflicts(!showConflicts)}
-            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+            className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-md transition-colors ${
               showConflicts 
                 ? 'bg-orange-100 text-orange-700 border border-orange-300' 
                 : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
@@ -454,17 +454,17 @@ export default function FlightGanttChart({
             {showConflicts ? 'Hide' : 'Show'} Conflicts
           </button>
           
-          <div className="flex items-center space-x-4 text-sm">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+          <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="w-2 sm:w-3 h-2 sm:h-3 bg-blue-500 rounded-full"></div>
               <span>Scheduled</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="w-2 sm:w-3 h-2 sm:h-3 bg-green-500 rounded-full"></div>
               <span>In Flight</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="w-2 sm:w-3 h-2 sm:h-3 bg-orange-500 rounded-full"></div>
               <span>Delayed</span>
             </div>
           </div>
@@ -473,20 +473,20 @@ export default function FlightGanttChart({
 
       {/* Conflict Warnings */}
       {showConflicts && conflicts.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <h4 className="font-medium text-orange-800 mb-3 flex items-center space-x-2">
-            <AlertTriangle className="w-5 h-5" />
-            <span>Flight Conflicts Detected</span>
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
+          <h4 className="font-medium text-orange-800 mb-2 sm:mb-3 flex items-center space-x-1 sm:space-x-2">
+            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-sm sm:text-base">Flight Conflicts Detected</span>
           </h4>
           <div className="space-y-2">
             {conflicts.map((conflict, index) => {
               const aircraftInfo = getAircraftInfo(conflict.aircraftId)
               return (
-                <div key={index} className="text-sm text-orange-700 bg-orange-100 p-3 rounded border border-orange-200">
+                <div key={index} className="text-xs sm:text-sm text-orange-700 bg-orange-100 p-2 sm:p-3 rounded border border-orange-200">
                   <div className="font-medium mb-1">
                     Aircraft Conflict: {aircraftInfo?.type} ({aircraftInfo?.registration})
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs">
                     <div>
                       <span className="font-medium">{conflict.flight1.flightNumber}:</span> {conflict.flight1.origin} → {conflict.flight1.destination}
                       <br />
@@ -514,9 +514,10 @@ export default function FlightGanttChart({
         {/* Time Header - Date headers and hourly slots */}
         <div className="border-b border-gray-200">
           {/* Date Headers */}
-          <div className="flex border-b border-gray-200">
-            <div className="w-64 bg-gray-50 p-3 font-medium text-gray-700 border-r border-gray-200">
-              Aircraft & Flight
+          <div className="flex border-b border-gray-200 overflow-x-auto">
+            <div className="w-48 sm:w-64 bg-gray-50 p-2 sm:p-3 font-medium text-gray-700 border-r border-gray-200 flex-shrink-0">
+              <span className="hidden sm:inline">Aircraft & Flight</span>
+              <span className="sm:hidden">Aircraft</span>
             </div>
             {Array.from({ length: zoomLevel === 'week' ? 7 : 31 }, (_, i) => {
               const date = zoomLevel === 'week' 
@@ -525,26 +526,28 @@ export default function FlightGanttChart({
               return (
                 <div
                   key={i}
-                  className="flex-1 p-2 text-center text-xs text-gray-600 border-r border-gray-200 min-w-[120px]"
+                  className="flex-1 p-1 sm:p-2 text-center text-xs text-gray-600 border-r border-gray-200 min-w-[80px] sm:min-w-[120px] flex-shrink-0"
                 >
                   <div className="font-medium">{format(date, 'EEE')}</div>
-                  <div className="text-gray-500">{format(date, 'MMM d')}</div>
+                  <div className="text-gray-500 hidden sm:block">{format(date, 'MMM d')}</div>
+                  <div className="text-gray-500 sm:hidden">{format(date, 'd')}</div>
                 </div>
               )
             })}
           </div>
           
           {/* Hour Headers */}
-          <div className="flex border-b border-gray-200">
-            <div className="w-64 bg-gray-50 p-2 border-r border-gray-200">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
+            <div className="w-48 sm:w-64 bg-gray-50 p-2 border-r border-gray-200 flex-shrink-0">
               <div className="text-xs text-gray-500 text-center">Hours</div>
             </div>
             {Array.from({ length: 24 }, (_, hour) => (
               <div
                 key={hour}
-                className="flex-1 p-1 text-center text-xs text-gray-500 border-r border-gray-200 min-w-[60px]"
+                className="flex-1 p-1 text-center text-xs text-gray-500 border-r border-gray-200 min-w-[40px] sm:min-w-[60px] flex-shrink-0"
               >
-                {format(addHours(new Date(), hour), 'HH:mm')}
+                <span className="hidden sm:inline">{format(addHours(new Date(), hour), 'HH:mm')}</span>
+                <span className="sm:hidden">{format(addHours(new Date(), hour), 'HH')}</span>
               </div>
             ))}
           </div>
@@ -552,10 +555,10 @@ export default function FlightGanttChart({
 
         {/* Aircraft Rows with Flights */}
         {flightsByAircraft.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <Plane className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>No flights scheduled for this {zoomLevel}</p>
-            <p className="text-sm">Add some flights to see them in the timeline</p>
+          <div className="p-4 sm:p-8 text-center text-gray-500">
+            <Plane className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-4 text-gray-300" />
+            <p className="text-sm sm:text-base">No flights scheduled for this {zoomLevel}</p>
+            <p className="text-xs sm:text-sm">Add some flights to see them in the timeline</p>
           </div>
         ) : (
           flightsByAircraft.map(({ aircraft: aircraftItem, flights: aircraftFlights }) => (
@@ -568,12 +571,12 @@ export default function FlightGanttChart({
               onDrop={(e) => handleAircraftDrop(e, aircraftItem)}
             >
               {/* Left Side - Aircraft Information */}
-              <div className="w-64 p-3 border-r border-gray-200 bg-gray-50">
-                <div className="font-medium text-gray-900">{aircraftItem.type}</div>
-                <div className="text-sm text-gray-600">{aircraftItem.registration}</div>
-                <div className="text-xs text-gray-500">Capacity: {aircraftItem.capacity}</div>
+              <div className="w-48 sm:w-64 p-2 sm:p-3 border-r border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="font-medium text-gray-900 text-sm sm:text-base">{aircraftItem.type}</div>
+                <div className="text-xs sm:text-sm text-gray-600">{aircraftItem.registration}</div>
+                <div className="text-xs text-gray-500 hidden sm:block">Capacity: {aircraftItem.capacity}</div>
                 {draggedFlight && draggedFlight.aircraftId !== aircraftItem.id && (
-                  <div className="text-xs text-blue-600 font-medium mt-2">
+                  <div className="text-xs text-blue-600 font-medium mt-1 sm:mt-2">
                     Drop here to move flight
                   </div>
                 )}
@@ -673,35 +676,33 @@ export default function FlightGanttChart({
       </div>
 
       {/* Summary */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-3">{zoomLevel.charAt(0).toUpperCase() + zoomLevel.slice(1)} Flight Summary</h4>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+      <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
+        <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">{zoomLevel.charAt(0).toUpperCase() + zoomLevel.slice(1)} Flight Summary</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4 text-xs sm:text-sm">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{rangeFlights.length}</div>
+            <div className="text-lg sm:text-2xl font-bold text-blue-600">{rangeFlights.length}</div>
             <div className="text-gray-600">Total Flights</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-lg sm:text-2xl font-bold text-green-600">
               {rangeFlights.filter(f => f.status === 'arrived').length}
             </div>
             <div className="text-gray-600">Arrived</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-lg sm:text-2xl font-bold text-yellow-600">
               {rangeFlights.filter(f => f.status === 'boarding' || f.status === 'departed').length}
             </div>
             <div className="text-gray-600">In Progress</div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">
+          <div className="text-center hidden sm:block">
+            <div className="text-lg sm:text-2xl font-bold text-orange-600">
               {rangeFlights.filter(f => f.status === 'delayed').length}
             </div>
             <div className="text-gray-600">Delayed</div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {connectedPairs.length}
-            </div>
+          <div className="text-center hidden sm:block">
+            <div className="text-lg sm:text-2xl font-bold text-red-600">{connectedPairs.length}</div>
             <div className="text-gray-600">Flight Pairs</div>
           </div>
         </div>
