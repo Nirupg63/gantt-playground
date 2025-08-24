@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Flight, Aircraft, FlightPair, WeatherCondition } from '../types/activity'
-import { format, parseISO, addHours, startOfDay, endOfDay, differenceInMinutes } from 'date-fns'
-import { Edit, Trash2, Clock, Plane, MapPin, Users, AlertTriangle, Cloud, CloudRain, CloudSnow, Zap, Eye, Thermometer, Wind } from 'lucide-react'
+import { format, parseISO, addHours, startOfDay, endOfDay, differenceInMinutes, addDays, addWeeks, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+import { Edit, Trash2, Clock, Plane, MapPin, Users, AlertTriangle, Cloud, CloudRain, CloudSnow, Zap, Eye, Thermometer, Wind, ZoomIn, ZoomOut } from 'lucide-react'
 
 interface FlightGanttChartProps {
   flights: Flight[]
@@ -15,6 +15,8 @@ interface FlightGanttChartProps {
   onSwapFlights: (flight1Id: number, flight2Id: number) => void
   selectedDate: string
 }
+
+type ZoomLevel = 'week' | 'month'
 
 export default function FlightGanttChart({ 
   flights, 
@@ -31,27 +33,61 @@ export default function FlightGanttChart({
   const [draggedFlight, setDraggedFlight] = useState<Flight | null>(null)
   const [dragOverFlight, setDragOverFlight] = useState<Flight | null>(null)
   const [showConflicts, setShowConflicts] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week')
   const containerRef = useRef<HTMLDivElement>(null)
 
   const selectedDateObj = parseISO(selectedDate)
-  const startOfSelectedDay = startOfDay(selectedDateObj)
-  const endOfSelectedDay = endOfDay(selectedDateObj)
+  
+  // Calculate time range based on zoom level
+  const getTimeRange = () => {
+    switch (zoomLevel) {
+      case 'week':
+        return {
+          start: startOfWeek(selectedDateObj, { weekStartsOn: 1 }), // Monday start
+          end: endOfWeek(selectedDateObj, { weekStartsOn: 1 }),
+          timeSlots: Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDateObj, { weekStartsOn: 1 }), i)),
+          timeFormat: 'EEE',
+          timeStep: 1, // 1 day
+          timeStepUnit: 'day'
+        }
+      case 'month':
+        return {
+          start: startOfMonth(selectedDateObj),
+          end: endOfMonth(selectedDateObj),
+          timeSlots: Array.from({ length: 31 }, (_, i) => addDays(startOfMonth(selectedDateObj), i)),
+          timeFormat: 'd',
+          timeStep: 1, // 1 day
+          timeStepUnit: 'day'
+        }
+    }
+  }
 
-  // Filter flights for the selected date
-  const dayFlights = flights.filter(flight => {
+  const timeRange = getTimeRange()
+
+  // Filter flights for the selected time range
+  const rangeFlights = flights.filter(flight => {
     const startDate = parseISO(flight.start_date)
     const endDate = parseISO(flight.end_date)
-    return startDate >= startOfSelectedDay && endDate <= endOfSelectedDay
+    return startDate >= timeRange.start && endDate <= timeRange.end
   })
+
+  // Group flights by aircraft
+  const flightsByAircraft = aircraft.map(aircraftItem => {
+    const aircraftFlights = rangeFlights.filter(flight => flight.aircraftId === aircraftItem.id)
+    return {
+      aircraft: aircraftItem,
+      flights: aircraftFlights
+    }
+  }).filter(group => group.flights.length > 0)
 
   // Detect flight conflicts (overlapping flights for the same aircraft)
   const detectConflicts = () => {
     const conflicts: Array<{flight1: Flight, flight2: Flight, aircraftId: number}> = []
     
-    for (let i = 0; i < dayFlights.length; i++) {
-      for (let j = i + 1; j < dayFlights.length; j++) {
-        const flight1 = dayFlights[i]
-        const flight2 = dayFlights[j]
+    for (let i = 0; i < rangeFlights.length; i++) {
+      for (let j = i + 1; j < rangeFlights.length; j++) {
+        const flight1 = rangeFlights[i]
+        const flight2 = rangeFlights[j]
         
         if (flight1.aircraftId === flight2.aircraftId) {
           const start1 = parseISO(flight1.start_date)
@@ -72,18 +108,33 @@ export default function FlightGanttChart({
 
   const conflicts = detectConflicts()
 
-  // Generate time slots (24 hours)
-  const timeSlots = Array.from({ length: 24 }, (_, i) => addHours(startOfSelectedDay, i))
-
   const getFlightPosition = (flight: Flight) => {
     const startDate = parseISO(flight.start_date)
     const endDate = parseISO(flight.end_date)
     
-    const startHour = startDate.getHours() + startDate.getMinutes() / 60
-    const endHour = endDate.getHours() + endDate.getMinutes() / 60
+    let left: number
+    let width: number
     
-    const left = (startHour / 24) * 100
-    const width = ((endHour - startHour) / 24) * 100
+    switch (zoomLevel) {
+      case 'week':
+        const startDay = startDate.getDay() === 0 ? 6 : startDate.getDay() - 1 // Convert Sunday=0 to Sunday=6
+        const startHour = startDate.getHours() + startDate.getMinutes() / 60
+        left = ((startDay * 24 + startHour) / (7 * 24)) * 100
+        const endDay = endDate.getDay() === 0 ? 6 : endDate.getDay() - 1
+        const endHour = endDate.getHours() + endDate.getMinutes() / 60
+        const totalWidth = ((endDay * 24 + endHour) - (startDay * 24 + startHour)) / (7 * 24) * 100
+        width = Math.max(totalWidth, 0.5) // Minimum width for visibility
+        break
+      case 'month':
+        const startDayOfMonth = startDate.getDate() - 1
+        const startHourOfDay = startDate.getHours() + startDate.getMinutes() / 60
+        left = ((startDayOfMonth * 24 + startHourOfDay) / (31 * 24)) * 100
+        const endDayOfMonth = endDate.getDate() - 1
+        const endHourOfDay = endDate.getHours() + endDate.getMinutes() / 60
+        const totalWidthMonth = ((endDayOfMonth * 24 + endHourOfDay) - (startDayOfMonth * 24 + startHourOfDay)) / (31 * 24) * 100
+        width = Math.max(totalWidthMonth, 0.3) // Minimum width for visibility
+        break
+    }
     
     return { left: `${left}%`, width: `${width}%` }
   }
@@ -148,10 +199,28 @@ export default function FlightGanttChart({
   }
 
   const formatTime = (date: Date) => {
-    return format(date, 'HH:mm')
+    switch (zoomLevel) {
+      case 'week':
+        return format(date, 'EEE')
+      case 'month':
+        return format(date, 'd')
+      default:
+        return format(date, 'EEE')
+    }
   }
 
-  // Drag and Drop handlers
+  const getZoomLabel = () => {
+    switch (zoomLevel) {
+      case 'week':
+        return `Week of ${format(timeRange.start, 'MMM d')} - ${format(timeRange.end, 'MMM d, yyyy')}`
+      case 'month':
+        return format(selectedDateObj, 'MMMM yyyy')
+      default:
+        return `Week of ${format(timeRange.start, 'MMM d')} - ${format(timeRange.end, 'MMM d, yyyy')}`
+    }
+  }
+
+  // Drag and Drop handlers for flight pairs
   const handleDragStart = (e: React.DragEvent, flight: Flight) => {
     setDraggedFlight(flight)
     e.dataTransfer.effectAllowed = 'move'
@@ -171,7 +240,24 @@ export default function FlightGanttChart({
   const handleDrop = (e: React.DragEvent, targetFlight: Flight) => {
     e.preventDefault()
     if (draggedFlight && draggedFlight.id !== targetFlight.id) {
-      onSwapFlights(draggedFlight.id, targetFlight.id)
+      // Find the flight pair for the dragged flight
+      const draggedPair = connectedPairs.find(pair => 
+        pair.outbound.id === draggedFlight.id || pair.return.id === draggedFlight.id
+      )
+      
+      // Find the flight pair for the target flight
+      const targetPair = connectedPairs.find(pair => 
+        pair.outbound.id === targetFlight.id || pair.return.id === targetFlight.id
+      )
+      
+      if (draggedPair && targetPair) {
+        // Swap the entire flight pairs
+        onSwapFlights(draggedPair.outbound.id, targetPair.outbound.id)
+        onSwapFlights(draggedPair.return.id, targetPair.return.id)
+      } else {
+        // Fallback to individual flight swap
+        onSwapFlights(draggedFlight.id, targetFlight.id)
+      }
     }
     setDraggedFlight(null)
     setDragOverFlight(null)
@@ -193,15 +279,45 @@ export default function FlightGanttChart({
     }
   }
 
+  // Get connected flight pairs
+  const getConnectedPairs = () => {
+    const pairs: Array<{outbound: Flight, return: Flight}> = []
+    const processedFlights = new Set<number>()
+    
+    rangeFlights.forEach(flight => {
+      if (processedFlights.has(flight.id)) return
+      
+      if (flight.flightPairId) {
+        const returnFlight = rangeFlights.find(f => 
+          f.flightPairId === flight.flightPairId && 
+          f.id !== flight.id && 
+          f.isReturn !== flight.isReturn
+        )
+        
+        if (returnFlight) {
+          const outbound = flight.isReturn ? returnFlight : flight
+          const returnF = flight.isReturn ? flight : returnFlight
+          pairs.push({ outbound, return: returnF })
+          processedFlights.add(flight.id)
+          processedFlights.add(returnFlight.id)
+        }
+      }
+    })
+    
+    return pairs
+  }
+
+  const connectedPairs = getConnectedPairs()
+
   return (
     <div className="space-y-4">
       {/* Chart Header */}
       <div className="flex items-center justify-between bg-gray-100 p-4 rounded-lg">
         <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-semibold">Flight Schedule for {format(selectedDateObj, 'EEEE, MMMM d, yyyy')}</h3>
+          <h3 className="text-lg font-semibold">Flight Schedule for {getZoomLabel()}</h3>
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Plane className="w-4 h-4" />
-            <span>{dayFlights.length} flights</span>
+            <span>{rangeFlights.length} flights</span>
             {conflicts.length > 0 && (
               <div className="flex items-center space-x-1 text-orange-600">
                 <AlertTriangle className="w-4 h-4" />
@@ -211,12 +327,65 @@ export default function FlightGanttChart({
           </div>
         </div>
         
+        {/* Zoom Controls */}
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-600 font-medium">Zoom:</span>
+          <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setZoomLevel('week')}
+              className={`px-3 py-1 text-sm transition-colors ${
+                zoomLevel === 'week' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setZoomLevel('month')}
+              className={`px-3 py-1 text-sm transition-colors ${
+                zoomLevel === 'month' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Month
+            </button>
+          </div>
+          
+          {/* Manual Zoom Controls */}
+          <div className="flex items-center space-x-1 ml-2">
+            <button
+              onClick={() => {
+                if (zoomLevel === 'month') return
+                if (zoomLevel === 'week') setZoomLevel('month')
+              }}
+              disabled={zoomLevel === 'month'}
+              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                if (zoomLevel === 'week') return
+                if (zoomLevel === 'month') setZoomLevel('week')
+              }}
+              disabled={zoomLevel === 'week'}
+              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        
         {/* Weather Summary */}
         {weatherData && (
           <div className="flex items-center space-x-4 text-sm">
             <span className="font-medium text-gray-700">Weather Summary:</span>
             <div className="flex items-center space-x-3">
-              {Array.from(new Set(dayFlights.flatMap(f => [f.origin, f.destination]))).slice(0, 5).map(airport => {
+              {Array.from(new Set(rangeFlights.flatMap(f => [f.origin, f.destination]))).slice(0, 5).map(airport => {
                 const weather = weatherData[airport]
                 if (!weather) return null
                 return (
@@ -281,14 +450,14 @@ export default function FlightGanttChart({
                       <span className="font-medium">{conflict.flight1.flightNumber}:</span> {conflict.flight1.origin} → {conflict.flight1.destination}
                       <br />
                       <span className="text-orange-600">
-                        {format(parseISO(conflict.flight1.start_date), 'HH:mm')} - {format(parseISO(conflict.flight1.end_date), 'HH:mm')}
+                        {format(parseISO(conflict.flight1.start_date), 'MMM d, HH:mm')} - {format(parseISO(conflict.flight1.end_date), 'MMM d, HH:mm')}
                       </span>
                     </div>
                     <div>
                       <span className="font-medium">{conflict.flight2.flightNumber}:</span> {conflict.flight2.origin} → {conflict.flight2.destination}
                       <br />
                       <span className="text-orange-600">
-                        {format(parseISO(conflict.flight2.start_date), 'HH:mm')} - {format(parseISO(conflict.flight2.end_date), 'HH:mm')}
+                        {format(parseISO(conflict.flight2.start_date), 'MMM d, HH:mm')} - {format(parseISO(conflict.flight2.end_date), 'MMM d, HH:mm')}
                       </span>
                     </div>
                   </div>
@@ -301,12 +470,12 @@ export default function FlightGanttChart({
 
       {/* Gantt Chart */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        {/* Time Header */}
+        {/* Time Header - Single header for all rows */}
         <div className="flex border-b border-gray-200">
           <div className="w-64 bg-gray-50 p-3 font-medium text-gray-700 border-r border-gray-200">
             Aircraft & Flight
           </div>
-          {timeSlots.map((time, index) => (
+          {timeRange.timeSlots.map((time, index) => (
             <div
               key={index}
               className="flex-1 p-2 text-center text-xs text-gray-600 border-r border-gray-200 min-w-[60px]"
@@ -316,211 +485,54 @@ export default function FlightGanttChart({
           ))}
         </div>
 
-        {/* Flights */}
-        {dayFlights.length === 0 ? (
+        {/* Aircraft Rows with Flights */}
+        {flightsByAircraft.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <Plane className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>No flights scheduled for this date</p>
+            <p>No flights scheduled for this {zoomLevel}</p>
             <p className="text-sm">Add some flights to see them in the timeline</p>
           </div>
         ) : (
-          dayFlights.map((flight) => {
-            const aircraftInfo = getAircraftInfo(flight.aircraftId)
-            const isDragging = draggedFlight?.id === flight.id
-            const isDragOver = dragOverFlight?.id === flight.id
-            const hasConflict = isFlightInConflict(flight.id)
-            
-            return (
-              <div 
-                key={flight.id} 
-                className={`flex border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                  isDragging ? 'opacity-50' : ''
-                } ${isDragOver ? 'bg-blue-50 border-blue-200' : ''} ${
-                  hasConflict ? 'bg-orange-50 border-orange-200' : ''
-                }`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, flight)}
-                onDragOver={(e) => handleDragOver(e, flight)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, flight)}
-              >
-                {/* Flight Info */}
-                <div className="w-64 p-3 border-r border-gray-200 bg-gray-50">
-                  {editingId === flight.id ? (
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={editForm.flightNumber || ''}
-                        onChange={(e) => setEditForm({ ...editForm, flightNumber: e.target.value })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-                      />
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={handleSave}
-                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={handleCancel}
-                          className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-gray-900 text-sm">{flight.flightNumber}</h4>
-                        <div className="flex space-x-1">
-                          <button
-                            onClick={() => handleEdit(flight)}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                          >
-                            <Edit className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => onDelete(flight.id)}
-                            className="p-1 text-gray-400 hover:text-red-600"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="text-xs text-gray-600">
-                        <div className="flex items-center space-x-1 mb-1">
-                          <Plane className="w-3 h-3" />
-                          <span>{aircraftInfo?.type || 'Unknown'} - {aircraftInfo?.registration || 'N/A'}</span>
-                        </div>
-                        <div className="flex items-center space-x-1 mb-1">
-                          <MapPin className="w-3 h-3" />
-                          <span>{flight.origin} → {flight.destination}</span>
-                        </div>
-                        <div className="flex items-center space-x-1 mb-1">
-                          <Users className="w-3 h-3" />
-                          <span>{flight.passengers}/{flight.crew} pax/crew</span>
-                        </div>
-                        {weatherData && (weatherData[flight.origin] || weatherData[flight.destination]) && (
-                          <div className="space-y-1 text-xs">
-                            {/* Origin Weather */}
-                            {weatherData[flight.origin] && (
-                              <div className="flex items-center space-x-1 text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                <span className="font-medium">Origin:</span>
-                                {getWeatherIcon(weatherData[flight.origin].condition)}
-                                <span className="capitalize">{weatherData[flight.origin].condition}</span>
-                                <Thermometer className="w-3 h-3" />
-                                <span>{weatherData[flight.origin].temperature}°C</span>
-                                <Wind className="w-3 h-3" />
-                                <span>{weatherData[flight.origin].windSpeed}km/h</span>
-                                <Eye className="w-3 h-3" />
-                                <span>{weatherData[flight.origin].visibility}km</span>
-                              </div>
-                            )}
-                            {/* Destination Weather */}
-                            {weatherData[flight.destination] && (
-                              <div className="flex items-center space-x-1 text-green-600 bg-green-50 px-2 py-1 rounded">
-                                <span className="font-medium">Dest:</span>
-                                {getWeatherIcon(weatherData[flight.destination].condition)}
-                                <span className="capitalize">{weatherData[flight.destination].condition}</span>
-                                <Thermometer className="w-3 h-3" />
-                                <span>{weatherData[flight.destination].temperature}°C</span>
-                                <Wind className="w-3 h-3" />
-                                <span>{weatherData[flight.destination].windSpeed}km/h</span>
-                                <Eye className="w-3 h-3" />
-                                <span>{weatherData[flight.destination].visibility}km</span>
-                              </div>
-                            )}
-                            
-                            {/* Weather Impact Assessment */}
-                            {(() => {
-                              const originWeather = weatherData[flight.origin]
-                              const destWeather = weatherData[flight.destination]
-                              const impacts = []
-                              
-                              if (originWeather) {
-                                if (originWeather.condition === 'storm') impacts.push('Departure delays likely')
-                                if (originWeather.condition === 'fog' && originWeather.visibility < 2) impacts.push('Low visibility departure')
-                                if (originWeather.windSpeed > 25) impacts.push('High winds at origin')
-                              }
-                              
-                              if (destWeather) {
-                                if (destWeather.condition === 'storm') impacts.push('Arrival delays likely')
-                                if (destWeather.condition === 'fog' && destWeather.visibility < 2) impacts.push('Low visibility arrival')
-                                if (destWeather.windSpeed > 25) impacts.push('High winds at destination')
-                              }
-                              
-                              if (impacts.length > 0) {
-                                return (
-                                  <div className="bg-orange-50 border border-orange-200 px-2 py-1 rounded text-orange-700">
-                                    <div className="flex items-center space-x-1">
-                                      <AlertTriangle className="w-3 h-3" />
-                                      <span className="font-medium">Weather Impact:</span>
-                                    </div>
-                                    <div className="text-xs space-y-1 mt-1">
-                                      {impacts.map((impact, idx) => (
-                                        <div key={idx} className="flex items-center space-x-1">
-                                          <span>•</span>
-                                          <span>{impact}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )
-                              }
-                              return null
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${getStatusColor(flight.status)}`}></div>
-                        <span className="text-xs text-gray-600 capitalize">{flight.status}</span>
-                        {hasConflict && (
-                          <div className="flex items-center space-x-1 text-orange-600">
-                            <AlertTriangle className="w-3 h-3" />
-                            <span className="text-xs">Conflict</span>
-                          </div>
-                        )}
-                        {/* Weather Status Indicator */}
-                        {weatherData && (() => {
-                          const originWeather = weatherData[flight.origin]
-                          const destWeather = weatherData[flight.destination]
-                          const hasWeatherIssues = (originWeather && (
-                            originWeather.condition === 'storm' || 
-                            (originWeather.condition === 'fog' && originWeather.visibility < 2) ||
-                            originWeather.windSpeed > 25
-                          )) || (destWeather && (
-                            destWeather.condition === 'storm' || 
-                            (destWeather.condition === 'fog' && destWeather.visibility < 2) ||
-                            destWeather.windSpeed > 25
-                          ))
-                          
-                          if (hasWeatherIssues) {
-                            return (
-                              <div className="flex items-center space-x-1 text-red-600">
-                                <Cloud className="w-3 h-3" />
-                                <span className="text-xs">Weather Risk</span>
-                              </div>
-                            )
-                          }
-                          return null
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Timeline Bar */}
-                <div className="flex-1 relative">
-                  <div className="relative h-full">
+          flightsByAircraft.map(({ aircraft: aircraftItem, flights: aircraftFlights }) => (
+            <div key={aircraftItem.id} className="flex border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              {/* Left Side - Aircraft Information */}
+              <div className="w-64 p-3 border-r border-gray-200 bg-gray-50">
+                <div className="font-medium text-gray-900">{aircraftItem.type}</div>
+                <div className="text-sm text-gray-600">{aircraftItem.registration}</div>
+                <div className="text-xs text-gray-500">Capacity: {aircraftItem.capacity}</div>
+              </div>
+              
+              {/* Right Side - Timeline with Flights */}
+              <div className="flex-1 relative h-16">
+                {aircraftFlights.map((flight) => {
+                  const isDragging = draggedFlight?.id === flight.id
+                  const isDragOver = dragOverFlight?.id === flight.id
+                  const hasConflict = isFlightInConflict(flight.id)
+                  const position = getFlightPosition(flight)
+                  
+                  // Check if this flight is part of a pair being dragged
+                  const draggedPair = draggedFlight ? connectedPairs.find(pair => 
+                    pair.outbound.id === draggedFlight.id || pair.return.id === draggedFlight.id
+                  ) : null
+                  const isPartOfDraggedPair = draggedPair && (
+                    draggedPair.outbound.id === flight.id || draggedPair.return.id === flight.id
+                  )
+                  
+                  return (
                     <div
+                      key={flight.id}
                       className={`absolute top-1/2 transform -translate-y-1/2 h-8 rounded-md border-2 ${getAircraftColor(flight.aircraftId)} ${getStatusColor(flight.status)} opacity-80 cursor-move ${
                         hasConflict ? 'ring-2 ring-orange-400 ring-opacity-75' : ''
+                      } ${isDragging || isPartOfDraggedPair ? 'opacity-50' : ''} ${isDragOver ? 'ring-2 ring-blue-400' : ''} ${
+                        isPartOfDraggedPair ? 'ring-2 ring-blue-300 ring-opacity-50' : ''
                       }`}
-                      style={getFlightPosition(flight)}
+                      style={{ left: position.left, width: position.width }}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, flight)}
+                      onDragOver={(e) => handleDragOver(e, flight)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, flight)}
+                      title={`${flight.flightNumber} - Drag to move entire flight pair`}
                     >
                       <div className="absolute inset-0 flex items-center justify-center">
                         <span className="text-xs font-medium text-white px-2 truncate">
@@ -528,45 +540,83 @@ export default function FlightGanttChart({
                         </span>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  )
+                })}
+                
+                {/* Connected Flight Pair Lines */}
+                {connectedPairs
+                  .filter(pair => 
+                    aircraftFlights.some(f => f.id === pair.outbound.id || f.id === pair.return.id)
+                  )
+                  .map((pair, index) => {
+                    const outboundPos = getFlightPosition(pair.outbound)
+                    const returnPos = getFlightPosition(pair.return)
+                    
+                    // Calculate line position between flights
+                    const outboundCenter = parseFloat(outboundPos.left) + parseFloat(outboundPos.width) / 2
+                    const returnCenter = parseFloat(returnPos.left) + parseFloat(returnPos.width) / 2
+                    
+                    if (Math.abs(outboundCenter - returnCenter) < 5) return null // Skip if flights are too close
+                    
+                    const lineLeft = Math.min(outboundCenter, returnCenter)
+                    const lineWidth = Math.abs(outboundCenter - returnCenter)
+                    
+                    // Check if this pair is being dragged
+                    const isPairBeingDragged = draggedFlight && (
+                      pair.outbound.id === draggedFlight.id || pair.return.id === draggedFlight.id
+                    )
+                    
+                    return (
+                      <div
+                        key={index}
+                        className={`absolute top-1/2 transform -translate-y-1/2 h-0.5 bg-blue-400 transition-opacity ${
+                          isPairBeingDragged ? 'opacity-30' : 'opacity-60'
+                        }`}
+                        style={{
+                          left: `${lineLeft}%`,
+                          width: `${lineWidth}%`,
+                          zIndex: 1
+                        }}
+                      />
+                    )
+                  })}
               </div>
-            )
-          })
+            </div>
+          ))
         )}
       </div>
 
       {/* Summary */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-3">Daily Flight Summary</h4>
+        <h4 className="font-medium text-gray-900 mb-3">{zoomLevel.charAt(0).toUpperCase() + zoomLevel.slice(1)} Flight Summary</h4>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{dayFlights.length}</div>
+            <div className="text-2xl font-bold text-blue-600">{rangeFlights.length}</div>
             <div className="text-gray-600">Total Flights</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {dayFlights.filter(f => f.status === 'arrived').length}
+              {rangeFlights.filter(f => f.status === 'arrived').length}
             </div>
             <div className="text-gray-600">Arrived</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-yellow-600">
-              {dayFlights.filter(f => f.status === 'boarding' || f.status === 'departed').length}
+              {rangeFlights.filter(f => f.status === 'boarding' || f.status === 'departed').length}
             </div>
             <div className="text-gray-600">In Progress</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">
-              {dayFlights.filter(f => f.status === 'delayed').length}
+              {rangeFlights.filter(f => f.status === 'delayed').length}
             </div>
             <div className="text-gray-600">Delayed</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-red-600">
-              {conflicts.length}
+              {connectedPairs.length}
             </div>
-            <div className="text-gray-600">Conflicts</div>
+            <div className="text-gray-600">Flight Pairs</div>
           </div>
         </div>
       </div>
