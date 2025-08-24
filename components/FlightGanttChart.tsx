@@ -45,19 +45,29 @@ export default function FlightGanttChart({
         return {
           start: startOfWeek(selectedDateObj, { weekStartsOn: 1 }), // Monday start
           end: endOfWeek(selectedDateObj, { weekStartsOn: 1 }),
-          timeSlots: Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDateObj, { weekStartsOn: 1 }), i)),
-          timeFormat: 'EEE',
-          timeStep: 1, // 1 day
-          timeStepUnit: 'day'
+          timeSlots: Array.from({ length: 7 * 24 }, (_, i) => {
+            const day = Math.floor(i / 24)
+            const hour = i % 24
+            return addHours(addDays(startOfWeek(selectedDateObj, { weekStartsOn: 1 }), day), hour)
+          }),
+          timeFormat: 'HH:mm',
+          timeStep: 1, // 1 hour
+          timeStepUnit: 'hour',
+          showDateHeaders: true
         }
       case 'month':
         return {
           start: startOfMonth(selectedDateObj),
           end: endOfMonth(selectedDateObj),
-          timeSlots: Array.from({ length: 31 }, (_, i) => addDays(startOfMonth(selectedDateObj), i)),
-          timeFormat: 'd',
-          timeStep: 1, // 1 day
-          timeStepUnit: 'day'
+          timeSlots: Array.from({ length: 31 * 24 }, (_, i) => {
+            const day = Math.floor(i / 24)
+            const hour = i % 24
+            return addHours(addDays(startOfMonth(selectedDateObj), day), hour)
+          }),
+          timeFormat: 'HH:mm',
+          timeStep: 1, // 1 hour
+          timeStepUnit: 'hour',
+          showDateHeaders: true
         }
     }
   }
@@ -120,6 +130,7 @@ export default function FlightGanttChart({
         const startDay = startDate.getDay() === 0 ? 6 : startDate.getDay() - 1 // Convert Sunday=0 to Sunday=6
         const startHour = startDate.getHours() + startDate.getMinutes() / 60
         left = ((startDay * 24 + startHour) / (7 * 24)) * 100
+        
         const endDay = endDate.getDay() === 0 ? 6 : endDate.getDay() - 1
         const endHour = endDate.getHours() + endDate.getMinutes() / 60
         const totalWidth = ((endDay * 24 + endHour) - (startDay * 24 + startHour)) / (7 * 24) * 100
@@ -129,6 +140,7 @@ export default function FlightGanttChart({
         const startDayOfMonth = startDate.getDate() - 1
         const startHourOfDay = startDate.getHours() + startDate.getMinutes() / 60
         left = ((startDayOfMonth * 24 + startHourOfDay) / (31 * 24)) * 100
+        
         const endDayOfMonth = endDate.getDate() - 1
         const endHourOfDay = endDate.getHours() + endDate.getMinutes() / 60
         const totalWidthMonth = ((endDayOfMonth * 24 + endHourOfDay) - (startDayOfMonth * 24 + startHourOfDay)) / (31 * 24) * 100
@@ -224,6 +236,7 @@ export default function FlightGanttChart({
   const handleDragStart = (e: React.DragEvent, flight: Flight) => {
     setDraggedFlight(flight)
     e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', flight.id.toString())
   }
 
   const handleDragOver = (e: React.DragEvent, flight: Flight) => {
@@ -261,6 +274,34 @@ export default function FlightGanttChart({
     }
     setDraggedFlight(null)
     setDragOverFlight(null)
+  }
+
+  // Handle dropping on aircraft row (to move flight to different aircraft)
+  const handleAircraftDrop = (e: React.DragEvent, targetAircraft: Aircraft) => {
+    e.preventDefault()
+    if (draggedFlight && draggedFlight.aircraftId !== targetAircraft.id) {
+      // Update the aircraft ID for the dragged flight
+      onUpdate(draggedFlight.id, { aircraftId: targetAircraft.id })
+      
+      // If it's part of a pair, also update the return flight
+      const draggedPair = connectedPairs.find(pair => 
+        pair.outbound.id === draggedFlight.id || pair.return.id === draggedFlight.id
+      )
+      
+      if (draggedPair) {
+        const otherFlight = draggedPair.outbound.id === draggedFlight.id ? draggedPair.return : draggedPair.outbound
+        onUpdate(otherFlight.id, { aircraftId: targetAircraft.id })
+      }
+    }
+    setDraggedFlight(null)
+    setDragOverFlight(null)
+  }
+
+  const handleAircraftDragOver = (e: React.DragEvent, aircraft: Aircraft) => {
+    e.preventDefault()
+    if (draggedFlight && draggedFlight.aircraftId !== aircraft.id) {
+      e.dataTransfer.dropEffect = 'move'
+    }
   }
 
   const getAircraftInfo = (aircraftId: number) => {
@@ -470,19 +511,43 @@ export default function FlightGanttChart({
 
       {/* Gantt Chart */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        {/* Time Header - Single header for all rows */}
-        <div className="flex border-b border-gray-200">
-          <div className="w-64 bg-gray-50 p-3 font-medium text-gray-700 border-r border-gray-200">
-            Aircraft & Flight
-          </div>
-          {timeRange.timeSlots.map((time, index) => (
-            <div
-              key={index}
-              className="flex-1 p-2 text-center text-xs text-gray-600 border-r border-gray-200 min-w-[60px]"
-            >
-              {formatTime(time)}
+        {/* Time Header - Date headers and hourly slots */}
+        <div className="border-b border-gray-200">
+          {/* Date Headers */}
+          <div className="flex border-b border-gray-200">
+            <div className="w-64 bg-gray-50 p-3 font-medium text-gray-700 border-r border-gray-200">
+              Aircraft & Flight
             </div>
-          ))}
+            {Array.from({ length: zoomLevel === 'week' ? 7 : 31 }, (_, i) => {
+              const date = zoomLevel === 'week' 
+                ? addDays(startOfWeek(selectedDateObj, { weekStartsOn: 1 }), i)
+                : addDays(startOfMonth(selectedDateObj), i)
+              return (
+                <div
+                  key={i}
+                  className="flex-1 p-2 text-center text-xs text-gray-600 border-r border-gray-200 min-w-[120px]"
+                >
+                  <div className="font-medium">{format(date, 'EEE')}</div>
+                  <div className="text-gray-500">{format(date, 'MMM d')}</div>
+                </div>
+              )
+            })}
+          </div>
+          
+          {/* Hour Headers */}
+          <div className="flex border-b border-gray-200">
+            <div className="w-64 bg-gray-50 p-2 border-r border-gray-200">
+              <div className="text-xs text-gray-500 text-center">Hours</div>
+            </div>
+            {Array.from({ length: 24 }, (_, hour) => (
+              <div
+                key={hour}
+                className="flex-1 p-1 text-center text-xs text-gray-500 border-r border-gray-200 min-w-[60px]"
+              >
+                {format(addHours(new Date(), hour), 'HH:mm')}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Aircraft Rows with Flights */}
@@ -494,16 +559,37 @@ export default function FlightGanttChart({
           </div>
         ) : (
           flightsByAircraft.map(({ aircraft: aircraftItem, flights: aircraftFlights }) => (
-            <div key={aircraftItem.id} className="flex border-b border-gray-100 hover:bg-gray-50 transition-colors">
+            <div 
+              key={aircraftItem.id} 
+              className={`flex border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                draggedFlight && draggedFlight.aircraftId !== aircraftItem.id ? 'bg-blue-50 border-blue-200' : ''
+              }`}
+              onDragOver={(e) => handleAircraftDragOver(e, aircraftItem)}
+              onDrop={(e) => handleAircraftDrop(e, aircraftItem)}
+            >
               {/* Left Side - Aircraft Information */}
               <div className="w-64 p-3 border-r border-gray-200 bg-gray-50">
                 <div className="font-medium text-gray-900">{aircraftItem.type}</div>
                 <div className="text-sm text-gray-600">{aircraftItem.registration}</div>
                 <div className="text-xs text-gray-500">Capacity: {aircraftItem.capacity}</div>
+                {draggedFlight && draggedFlight.aircraftId !== aircraftItem.id && (
+                  <div className="text-xs text-blue-600 font-medium mt-2">
+                    Drop here to move flight
+                  </div>
+                )}
               </div>
               
               {/* Right Side - Timeline with Flights */}
               <div className="flex-1 relative h-16">
+                {/* Drop zone indicator */}
+                {draggedFlight && draggedFlight.aircraftId !== aircraftItem.id && (
+                  <div className="absolute inset-0 bg-blue-50 bg-opacity-30 border-2 border-dashed border-blue-300 rounded flex items-center justify-center">
+                    <div className="text-blue-600 text-sm font-medium">
+                      Drop flight here to move to {aircraftItem.registration}
+                    </div>
+                  </div>
+                )}
+                
                 {aircraftFlights.map((flight) => {
                   const isDragging = draggedFlight?.id === flight.id
                   const isDragOver = dragOverFlight?.id === flight.id
